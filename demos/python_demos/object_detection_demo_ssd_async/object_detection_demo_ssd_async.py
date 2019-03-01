@@ -22,6 +22,8 @@ from argparse import ArgumentParser, SUPPRESS
 import cv2
 import time
 import logging as log
+import numpy as np
+from nms.nms import boxes as nms
 
 from openvino.inference_engine import IENetwork, IECore
 
@@ -48,6 +50,17 @@ def build_argparser():
 
     return parser
 
+def put_text(img, xmin, ymin, text, color):
+    font_scale = 0.6
+    font = cv2.FONT_HERSHEY_COMPLEX
+
+    rectangle_bgr = (255, 255, 255)
+    (text_width, text_height) = cv2.getTextSize(text, font, fontScale=font_scale, thickness=1)[0]
+    text_offset_x = xmin
+    text_offset_y = ymin - 7
+    box_coords = ((text_offset_x, text_offset_y), (text_offset_x + text_width - 2, text_offset_y - text_height - 2))
+    cv2.rectangle(img, box_coords[0], box_coords[1], rectangle_bgr, cv2.FILLED)
+    cv2.putText(img, text, (text_offset_x, text_offset_y), font, fontScale=font_scale, color=color, thickness=1)
 
 def main():
     log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
@@ -149,20 +162,32 @@ def main():
 
             # Parse detection results of the current request
             res = exec_net.requests[cur_request_id].outputs[out_blob]
+
+            bboxes=[]
             for obj in res[0][0]:
                 # Draw only objects when probability more than specified threshold
                 if obj[2] > args.prob_threshold:
-                    xmin = int(obj[3] * initial_w)
-                    ymin = int(obj[4] * initial_h)
-                    xmax = int(obj[5] * initial_w)
-                    ymax = int(obj[6] * initial_h)
-                    class_id = int(obj[1])
-                    # Draw box and label\class_id
-                    color = (min(class_id * 12.5, 255), min(class_id * 7, 255), min(class_id * 5, 255))
+                    xmin = obj[3] * initial_w
+                    ymin = obj[4] * initial_h
+                    xmax = obj[5] * initial_w
+                    ymax = obj[6] * initial_h
+                    class_id = obj[1]
+                    conf = obj[2]
+                    bboxes.append([xmin, ymin, xmax - xmin, ymax - ymin, class_id, conf])
+
+            if len(bboxes) > 0:
+                bboxes = np.array(bboxes)
+                indices = nms(bboxes[:,:4], bboxes[:, 5])
+                bboxes = bboxes[indices]
+
+                for xmin, ymin, width, height, class_id, conf in bboxes:
+                    xmin, ymin, xmax, ymax, class_id, conf = int(xmin), int(ymin), int(xmin + width), int(ymin + height), int(class_id), int(round(conf * 100, 1))
+                    # Draw only objects when probability more than specified threshold
+                    color = (int(min(class_id * 12.5, 255)), int(min(class_id * 7, 255)), int(min(class_id * 5, 255)))
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
                     det_label = labels_map[class_id] if labels_map else str(class_id)
-                    cv2.putText(frame, det_label + ' ' + str(round(obj[2] * 100, 1)) + ' %', (xmin, ymin - 7),
-                                cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
+                    # Draw box and label\class_id
+                    put_text(frame, xmin, ymin, det_label + ' ' + str(conf) + ' %', color)
 
             # Draw performance stats
             inf_time_message = "Inference time: N\A for async mode" if is_async_mode else \
