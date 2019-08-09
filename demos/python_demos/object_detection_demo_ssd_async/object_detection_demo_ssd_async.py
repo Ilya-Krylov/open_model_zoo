@@ -57,7 +57,7 @@ def put_text(img, xmin, ymin, text, color):
     rectangle_bgr = (255, 255, 255)
     (text_width, text_height) = cv2.getTextSize(text, font, fontScale=font_scale, thickness=1)[0]
     text_offset_x = xmin
-    text_offset_y = ymin - 7
+    text_offset_y = max(ymin - 7, text_height)
     box_coords = ((text_offset_x, text_offset_y), (text_offset_x + text_width - 2, text_offset_y - text_height - 2))
     cv2.rectangle(img, box_coords[0], box_coords[1], rectangle_bgr, cv2.FILLED)
     cv2.putText(img, text, (text_offset_x, text_offset_y), font, fontScale=font_scale, color=color, thickness=1)
