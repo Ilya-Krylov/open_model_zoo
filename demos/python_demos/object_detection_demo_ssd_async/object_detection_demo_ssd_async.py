@@ -177,7 +177,7 @@ def main():
 
             if len(bboxes) > 0:
                 bboxes = np.array(bboxes)
-                indices = nms(bboxes[:,:4], bboxes[:, 5])
+                indices = nms(bboxes[:,:4], bboxes[:, 5], nms_threshold=0.75)
                 bboxes = bboxes[indices]
 
                 for xmin, ymin, width, height, class_id, conf in bboxes:
