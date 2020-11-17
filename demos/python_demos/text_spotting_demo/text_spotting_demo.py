@@ -301,6 +301,9 @@ def main():
             raw_masks = outputs['masks']
             text_features = outputs['text_features.0']
 
+        print(outputs['boxes'])
+        exit()
+
         # Filter out detections with low confidence.
         detections_filter = scores > args.prob_threshold
         scores = scores[detections_filter]
